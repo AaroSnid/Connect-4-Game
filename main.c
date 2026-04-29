@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <cstdio>
-#include <stdlib.h>
-#include <time.h>
+#include <climits>
 
 #include "board.h"
 
@@ -33,9 +32,34 @@ void display_board(uint64_t mask, uint64_t p1) {
     printf(" ---------------\n");
 }
 
-int main() {
-    srand(time(NULL));
+int choose_best_ai_move(uint64_t game_board, uint64_t p1_moves) {
+    const unsigned char ordered_columns[7] = {3, 2, 4, 1, 5, 0, 6};
+    const uint64_t ai_moves = game_board ^ p1_moves;
+    int best_column = -1;
+    int best_score = INT_MIN;
 
+    for (int i = 0; i < 7; i++) {
+        unsigned char col = ordered_columns[i];
+        int bit_index = find_open_space(game_board, col);
+        if (bit_index < 0) continue;
+
+        uint64_t next_game_board = game_board | (1ULL << bit_index);
+        uint64_t next_p1_moves = p1_moves;
+
+        // Immediate wins are always preferred.
+        if (is_won(ai_moves | (1ULL << bit_index))) return col;
+
+        int score = -minimax(next_game_board, next_p1_moves, 1, -1000000, 1000000);
+        if (score > best_score) {
+            best_score = score;
+            best_column = col;
+        }
+    }
+
+    return best_column;
+}
+
+int main() {
     uint64_t bit_board = 0; // Represents all occupied slots
     uint64_t p1_moves = 0;  // Represents only Player 1's slots
     int move_num = 0;
@@ -54,7 +78,7 @@ int main() {
             if (column >= 0 && column < 7) {
                 int location = play_move(bit_board, column);
                 if (location >= 0) {
-                    p1_moves |= (1ULL << location); // Fixed: Use |= to add the bit
+                    p1_moves |= (1ULL << location);
                     move_num++;
                     display_board(bit_board, p1_moves);
                     if (is_won(p1_moves)) {
@@ -62,11 +86,14 @@ int main() {
                         return 0;
                     }
                 } else {
-                    printf("Column full! %i \n", bit_board);
+                    printf("Column full!\n");
                 }
             }
         } else { // AI's Turn (Player 0)
-            int bot_column = rand() % 7;
+            int bot_column = choose_best_ai_move(bit_board, p1_moves);
+            if (bot_column < 0) {
+                break;
+            }
             int location = play_move(bit_board, bot_column);
             if (location >= 0) {
                 move_num++;
@@ -74,7 +101,7 @@ int main() {
                 display_board(bit_board, p1_moves);
                 // Player 0's board is (Total Board XOR Player 1's Board)
                 if (is_won(bit_board ^ p1_moves)) {
-                    printf("You lost to an AI making random moves bozo\n");
+                    printf("Yeah makes sense, you lost to a pretty smart AI\n");
                     return 0;
                 }
             }
