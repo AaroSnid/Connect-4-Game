@@ -13,10 +13,11 @@
 #define HEURISTIC_2_LINE_WEIGHT 4
 #define HEURISTIC_CENTER_PIECE_WEIGHT 4
 
-enum TranspositionBound : uint8_t {
-    TT_EXACT_BOUND = 0,
-    TT_LOWER_BOUND = 1,
-    TT_UPPER_BOUND = 2
+#if TRANSPOSITION_TABLE_SIZE != 0
+enum TranspositionBound {
+    TT_EXACT_BOUND,
+    TT_LOWER_BOUND,
+    TT_UPPER_BOUND
 };
 
 struct TranspositionEntry {
@@ -28,6 +29,7 @@ struct TranspositionEntry {
 };
 
 static TranspositionEntry transposition_table[TRANSPOSITION_TABLE_SIZE] = {};
+#endif
 
 /*
 Bit board:
@@ -72,6 +74,7 @@ struct HeuristicDirectionMasks {
 
 */
 
+#if TRANSPOSITION_TABLE_SIZE != 0
 inline uint64_t compute_position_key(uint64_t game_board, uint64_t player_moves){
     // Mix both bitboards to uniquely represent side-to-move state.
     uint64_t key = game_board ^ (player_moves * 0x9E3779B97F4A7C15ULL);
@@ -90,6 +93,7 @@ void clear_transposition_table(){
         transposition_table[i].valid = false;
     }
 }
+#endif
 
 /* This function will find any 4 adjacent pieces on the given board */
 bool is_won(uint64_t player_moves){
@@ -156,7 +160,7 @@ bool is_winning_move(uint64_t game_board, uint64_t player_moves, unsigned char c
     return is_won(player_moves | (1ULL << bit_index));
 }
 
-inline int evaluate_direction(uint64_t own_pieces, uint64_t opponent_pieces, uint64_t start_mask, int shift){
+int evaluate_direction(uint64_t own_pieces, uint64_t opponent_pieces, uint64_t start_mask, int shift){
     const uint64_t b0 = own_pieces & start_mask;
     const uint64_t b1 = (own_pieces >> shift) & start_mask;
     const uint64_t b2 = (own_pieces >> (2 * shift)) & start_mask;
@@ -221,6 +225,8 @@ int minimax(uint64_t game_board, uint64_t player_moves, uint8_t depth, int alpha
     if (depth == MINIMAX_MAX_DEPTH) return board_heuristic(game_board, player_moves);
 
     const uint8_t remaining_depth = MINIMAX_MAX_DEPTH - depth;
+
+#if TRANSPOSITION_TABLE_SIZE != 0
     const uint64_t position_key = compute_position_key(game_board, player_moves);
     TranspositionEntry &entry = transposition_table[transposition_index(position_key)];
 
@@ -230,6 +236,7 @@ int minimax(uint64_t game_board, uint64_t player_moves, uint8_t depth, int alpha
         else if (entry.bound == TT_UPPER_BOUND && entry.score < beta) beta = entry.score;
         if (alpha >= beta) return entry.score;
     }
+#endif
 
     // Middle column out ordering improves alpha-beta pruning effectiveness.
     const unsigned char ordered_columns[7] = {3, 2, 4, 1, 5, 0, 6};
@@ -251,6 +258,8 @@ int minimax(uint64_t game_board, uint64_t player_moves, uint8_t depth, int alpha
     }
 
     int final_score = (best_score == INT_MIN) ? 0 : best_score;
+
+#if TRANSPOSITION_TABLE_SIZE != 0
     uint8_t bound = TT_EXACT_BOUND;
     if (final_score <= original_alpha) bound = TT_UPPER_BOUND;
     else if (final_score >= beta) bound = TT_LOWER_BOUND;
@@ -262,8 +271,9 @@ int minimax(uint64_t game_board, uint64_t player_moves, uint8_t depth, int alpha
         entry.bound = bound;
         entry.valid = true;
     }
+#endif
 
     return final_score;
 }
 
-#endif 
+#endif /* BOARD_H_ */
